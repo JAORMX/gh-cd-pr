@@ -12,10 +12,6 @@ import (
 )
 
 func main() {
-	if len(os.Args) == 2 && os.Args[1] == "--init" {
-		initWrapper()
-		return
-	}
 	if len(os.Args) != 2 || os.Args[1] == "-h" || os.Args[1] == "--help" {
 		usage()
 	}
@@ -23,10 +19,6 @@ func main() {
 	if err != nil || n <= 0 {
 		exit(fmt.Sprintf("expected a positive PR number, got %q", os.Args[1]))
 	}
-	solve(n)
-}
-
-func solve(n int) {
 
 	repo, err := repository.Current()
 	if err != nil {
@@ -114,20 +106,8 @@ func runGit(args ...string) (string, error) {
 func usage() {
 	fmt.Fprintln(os.Stderr, "usage: gh cd-pr <number>")
 	fmt.Fprintln(os.Stderr, "Prints the worktree path of an already-checked-out local PR branch.")
-	fmt.Fprintln(os.Stderr, "")
-	fmt.Fprintln(os.Stderr, "For `gh cd-pr <number>` to cd directly (no sub-shell), install the wrapper:")
-	fmt.Fprintln(os.Stderr, `  eval "$(gh cd-pr --init)"`)
-	fmt.Fprintln(os.Stderr, "This defines `gh_cd_pr` so `gh_cd_pr 123` cd-es into the worktree.")
+	fmt.Fprintln(os.Stderr, "Example: cd $(gh cd-pr 123)")
 	os.Exit(1)
-}
-
-func initWrapper() {
-	fmt.Fprintln(os.Stdout, `
-gh_cd_pr() {
-  local dest
-  dest=$(gh cd-pr "$@") || return
-  cd "$dest"
-}`)
 }
 
 func exit(msg string) {
