@@ -104,9 +104,9 @@ func runGit(args ...string) (string, error) {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: gh cd-pr <number>")
+	fmt.Fprintln(os.Stderr, "usage: gh pwd-pr <number>")
 	fmt.Fprintln(os.Stderr, "Prints the worktree path of an already-checked-out local PR branch.")
-	fmt.Fprintln(os.Stderr, "Example: cd $(gh cd-pr 123)")
+	fmt.Fprintln(os.Stderr, "Example: cd $(gh pwd-pr 123)")
 	os.Exit(1)
 }
 

@@ -1,4 +1,4 @@
-module github.com/JAORMX/gh-cd-pr
+module github.com/JAORMX/gh-pwd-pr
 
 go 1.26.3
 
