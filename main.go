@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/cli/go-gh/v2/pkg/api"
+	"github.com/cli/go-gh/v2/pkg/repository"
 )
 
 func main() {
@@ -19,9 +20,9 @@ func main() {
 		exit(fmt.Sprintf("expected a positive PR number, got %q", os.Args[1]))
 	}
 
-	owner, name, err := currentRepo()
+	repo, err := repository.Current()
 	if err != nil {
-		exit("not inside a git repository (or no remote configured)")
+		exit("not inside a git repository, no GitHub remote found, and no GH_REPO set\n\nworktree error: " + err.Error())
 	}
 
 	client, err := api.DefaultRESTClient()
@@ -31,36 +32,38 @@ func main() {
 
 	var pr struct {
 		Head struct {
-			Ref   string `json:"ref"`
-			Repo  struct {
+			Ref  string `json:"ref"`
+			Repo struct {
 				Owner struct {
 					Login string `json:"login"`
 				} `json:"owner"`
 			} `json:"repo"`
 		} `json:"head"`
 	}
-	if err := client.Get(fmt.Sprintf("repos/%s/%s/pulls/%d", owner, name, n), &pr); err != nil {
+	if err := client.Get(fmt.Sprintf("repos/%s/%s/pulls/%d", repo.Owner, repo.Name, n), &pr); err != nil {
 		exit(fmt.Sprintf("fetching PR #%d: %v", n, err))
 	}
 	if pr.Head.Ref == "" {
 		exit(fmt.Sprintf("no head branch returned for PR #%d", n))
 	}
+	ref := pr.Head.Ref
 
-	branchOwner := owner
+	owner := repo.Owner
 	if pr.Head.Repo.Owner.Login != "" {
-		branchOwner = pr.Head.Repo.Owner.Login
+		owner = pr.Head.Repo.Owner.Login
 	}
-	qualified := fmt.Sprintf("refs/heads/%s:%s", branchOwner, pr.Head.Ref)
-	plain := fmt.Sprintf("refs/heads/%s", pr.Head.Ref)
+	qualified := fmt.Sprintf("refs/heads/%s:%s", owner, ref)
+	plain := fmt.Sprintf("refs/heads/%s", ref)
+	originQualified := fmt.Sprintf("refs/remotes/origin/%s", ref)
 
 	for _, wt := range worktrees() {
-		if wt.Branch == qualified || wt.Branch == plain {
+		if wt.Branch == qualified || wt.Branch == originQualified || wt.Branch == plain {
 			fmt.Println(wt.Path)
 			return
 		}
 	}
 
-	exit(fmt.Sprintf("the branch for PR #%d (%s) is not checked out in any local worktree", n, pr.Head.Ref))
+	exit(fmt.Sprintf("PR #%d (%s) is not checked out in any local worktree\nhint: git worktree add <path> %s", n, ref, ref))
 }
 
 type worktree struct {
@@ -92,46 +95,18 @@ func worktrees() []worktree {
 	return trees
 }
 
-func currentRepo() (string, string, error) {
-	out, err := runGit("remote", "get-url", "origin")
-	if err != nil || out == "" {
-		return "", "", err
-	}
-	return parseGitURL(out)
-}
-
-func parseGitURL(u string) (string, string, error) {
-	u = strings.TrimSuffix(u, ".git")
-	u = strings.TrimSuffix(u, "/")
-	var path string
-	switch {
-	case strings.Contains(u, "://"): // https://host/owner/repo
-		parts := strings.SplitN(u, "://", 2)
-		path = parts[1]
-	case strings.HasPrefix(u, "git@"): // git@host:owner/repo
-		path = strings.SplitN(u, ":", 2)[1]
-	default:
-		return "", "", fmt.Errorf("unrecognised remote URL %q", u)
-	}
-	segs := strings.Split(path, "/")
-	if len(segs) < 2 {
-		return "", "", fmt.Errorf("unrecognised remote URL %q", u)
-	}
-	return segs[len(segs)-2], segs[len(segs)-1], nil
-}
-
 func runGit(args ...string) (string, error) {
 	out, err := exec.Command("git", args...).Output()
 	if err != nil {
 		return "", err
 	}
-	return strings.TrimRight(string(out), "\n"), nil
+	return strings.TrimSuffix(string(out), "\n"), nil
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: gh cd pr <number>")
+	fmt.Fprintln(os.Stderr, "usage: gh cd-pr <number>")
 	fmt.Fprintln(os.Stderr, "Prints the worktree path of an already-checked-out local PR branch.")
-	fmt.Fprintln(os.Stderr, "Use with cd: cd $(gh cd pr <number>)")
+	fmt.Fprintln(os.Stderr, "Example: cd $(gh cd-pr 123)")
 	os.Exit(1)
 }
 
